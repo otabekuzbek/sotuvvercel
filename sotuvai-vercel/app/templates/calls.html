@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import score, duration, status %}
+{% block title %}Qo'ng'iroqlar{% endblock %}
+{% block content %}
+<div class="topbar"><div><h1>Qo'ng'iroqlar</h1><div class="sub">Jami {{ total }} ta</div></div></div>
+
+<form class="card filters" method="get">
+  <div><label>Menejer</label><select name="manager"><option value="">Barchasi</option>
+    {% for m in managers %}<option value="{{ m.id }}" {{ 'selected' if filters.manager == m.id }}>{{ m.name }}</option>{% endfor %}</select></div>
+  <div><label>Holat</label><select name="status"><option value="">Barchasi</option>
+    {% for k, v in STATUS_LABELS.items() %}<option value="{{ k }}" {{ 'selected' if filters.status == k }}>{{ v }}</option>{% endfor %}</select></div>
+  <div><label>Baho</label><select name="score"><option value="">Barchasi</option>
+    <option value="low" {{ 'selected' if filters.score == 'low' }}>Past (&lt;50)</option>
+    <option value="mid" {{ 'selected' if filters.score == 'mid' }}>O'rta (50–74)</option>
+    <option value="high" {{ 'selected' if filters.score == 'high' }}>Yaxshi (75+)</option></select></div>
+  <div><label>Sanadan</label><input type="date" name="date_from" value="{{ filters.date_from }}"></div>
+  <div><label>Sanagacha</label><input type="date" name="date_to" value="{{ filters.date_to }}"></div>
+  <div style="min-width:auto"><button class="btn primary">Filtrlash</button></div>
+</form>
+
+<div class="card table-wrap">
+  {% if calls %}
+  <table>
+    <tr><th>Vaqt</th><th>Menejer</th><th>Turi</th><th>Telefon</th><th class="num">Davomiylik</th><th>Natija</th><th>Holat</th><th class="num">Baho</th></tr>
+    {% for c in calls %}
+    <tr class="click" onclick="location='/calls/{{ c.id }}'">
+      <td>{{ to_local(c.call_time).strftime('%d.%m %H:%M') if c.call_time }}</td>
+      <td><b>{{ c.manager.name if c.manager else '—' }}</b></td>
+      <td class="muted">{{ '↙ kiruvchi' if c.direction == 'in' else '↗ chiquvchi' }}</td>
+      <td class="muted">{{ c.phone }}</td>
+      <td class="num">{{ duration(c.duration or 0) }}</td>
+      <td>{% if c.analysis.outcome %}<span class="badge">{{ OUTCOME_LABELS.get(c.analysis.outcome) }}</span>{% endif %}</td>
+      <td>{{ status(c.status) }}</td>
+      <td class="num">{{ score(c.overall_score) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">Qo'ng'iroq topilmadi</div>{% endif %}
+</div>
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="btn" href="?{{ qs(page - 1) }}">← Oldingi</a>{% endif %}
+  <span class="btn" style="cursor:default">{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn" href="?{{ qs(page + 1) }}">Keyingi →</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

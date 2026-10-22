@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sozlash kerak · {{ app_name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="card" style="max-width:560px;width:100%">
+    <div class="logo" style="padding:0 0 18px"><span class="logo-mark">S</span>{{ app_name }}</div>
+    <h1 style="margin-bottom:6px">Ilova ishga tushdi, lekin sozlash kerak</h1>
+    <p class="sub" style="margin:0 0 16px">Quyidagi muhit o'zgaruvchilarini kiriting:</p>
+    <ul class="list" style="margin-bottom:18px">
+      {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+    {% if is_vercel %}
+    <div class="alert">Vercel: loyiha → <b>Settings → Environment Variables</b> ga qo'shing, so'ng
+      <b>Deployments → ⋯ → Redeploy</b> qiling. Postgres uchun: <b>Storage → Create Database → Neon</b>.</div>
+    {% else %}
+    <div class="alert">Qiymatlarni <code>.env</code> fayliga yozib, ilovani qayta ishga tushiring.</div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

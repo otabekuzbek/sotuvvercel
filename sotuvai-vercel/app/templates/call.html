@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% from "_macros.html" import score, bar, duration, status %}
+{% block title %}Qo'ng'iroq #{{ call.id }}{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <a href="/calls" class="muted">← Qo'ng'iroqlar</a>
+    <h1 style="margin-top:6px">{{ call.manager.name if call.manager else 'Nomaʼlum menejer' }} · {{ call.phone }}</h1>
+    <div class="sub">{{ to_local(call.call_time).strftime('%d.%m.%Y %H:%M') if call.call_time }} ·
+      {{ 'Kiruvchi' if call.direction == 'in' else 'Chiquvchi' }} · {{ duration(call.duration or 0) }} · {{ status(call.status) }}</div>
+  </div>
+  <div class="row">
+    {% if amo_link %}<a class="btn" href="{{ amo_link }}" target="_blank" rel="noopener">amoCRM'da ochish ↗</a>{% endif %}
+    <form method="post" action="/calls/{{ call.id }}/reanalyze"><button class="btn">Qayta tahlil</button></form>
+  </div>
+</div>
+
+{% if call.error %}<div class="alert {{ 'err' if call.status == 'failed' else 'warn' }}">{{ call.error }}</div>{% endif %}
+{% if call.status in ('new', 'transcribing', 'analyzing') %}
+<div class="alert">{{ STATUS_LABELS[call.status] }}… Sahifa avtomatik yangilanadi.</div>
+<script>setInterval(async () => { const r = await fetch('/api/calls/{{ call.id }}/status'); const j = await r.json(); if (!['new','transcribing','analyzing'].includes(j.status)) location.reload(); }, 4000);</script>
+{% endif %}
+
+{% if call.recording_url %}
+<div class="card" style="margin-bottom:16px"><audio controls preload="none" src="{{ call.recording_url }}" style="width:100%"></audio></div>
+{% endif %}
+
+{% if a and a.stages %}
+<div class="grid g32" style="margin-bottom:16px">
+  <div class="card">
+    <div class="row" style="align-items:flex-start">
+      <div style="flex:1"><h2>Xulosa</h2><p style="margin:0">{{ a.summary }}</p></div>
+      <div style="text-align:center"><div class="muted" style="font-size:12px">Umumiy baho</div>
+        <div style="font-size:30px">{{ score(call.overall_score) }}</div></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <span class="badge">{{ OUTCOME_LABELS.get(a.outcome, a.outcome) }}</span>
+      <span class="badge">Mijoz kayfiyati: {{ a.client_sentiment }}</span>
+      {% if a.client_needs %}{% for n in a.client_needs %}<span class="badge">{{ n }}</span>{% endfor %}{% endif %}
+    </div>
+    {% if a.red_flags %}<div class="alert err" style="margin:14px 0 0"><b>Jiddiy xatolar:</b> {{ a.red_flags|join('; ') }}</div>{% endif %}
+
+    <h3>Tavsiyalar</h3>
+    {% for r in a.recommendations %}
+      <div class="rec"><div class="t">{{ r.title }}</div><div>{{ r.detail }}</div>
+        {% if r.example_phrase %}<div class="ex">Misol: «{{ r.example_phrase }}»</div>{% endif %}</div>
+    {% endfor %}
+
+    <div class="grid g2">
+      <div><h3>Yaxshi tomonlar</h3><ul class="list">{% for s in a.strengths %}<li>{{ s }}</li>{% endfor %}</ul></div>
+      <div><h3>Zaif joylar</h3><ul class="list">{% for s in a.weaknesses %}<li>{{ s }}</li>{% endfor %}</ul></div>
+    </div>
+
+    {% if a.objections %}
+    <h3>E'tirozlar</h3>
+    <table>
+      {% for o in a.objections %}
+      <tr><td style="width:40%"><b>{{ o.objection }}</b><br>
+        <span class="badge" style="{{ 'background:var(--good-soft);color:var(--good)' if o.handled else 'background:var(--bad-soft);color:var(--bad)' }}">{{ 'Javob berildi' if o.handled else 'Javobsiz' }}</span></td>
+        <td class="muted">{{ o.better_response or '' }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if a.next_steps %}
+    <h3>Keyingi qadamlar {% if call.tasks_created %}<span class="badge">amoCRM'ga vazifa qilib qo'shildi</span>{% endif %}</h3>
+    <ul class="list">{% for s in a.next_steps %}<li>{{ s.action }} — <span class="muted">{{ s.due_in_days }} kun ichida</span></li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Skript bo'yicha baholash</h2>
+    {% for st in a.stages %}
+      <div style="margin-bottom:14px">
+        <div class="stage-row" style="margin-bottom:4px"><span class="name">{{ st.name }}</span><span class="num">{{ score(st.score) }}</span>{{ bar(st.score) }}</div>
+        <div class="muted" style="font-size:13px">{{ st.comment }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if call.transcript %}
+<div class="card">
+  <h2>Transkript</h2>
+  <div class="transcript">
+    {% for t in call.transcript %}
+    <div class="turn {{ 'mgr' if a and t.speaker == a.manager_speaker }}">
+      <div class="ts">{{ '%02d:%02d' % ((t.start // 60)|int, (t.start % 60)|int) }}</div>
+      <div>{% if t.speaker == 'Suhbat' or not (a and a.manager_speaker) %}{% set who = t.speaker %}{% elif t.speaker == a.manager_speaker %}{% set who = 'Menejer' %}{% else %}{% set who = 'Mijoz' %}{% endif %}
+        <div class="who">{{ who }}</div>{{ t.text }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

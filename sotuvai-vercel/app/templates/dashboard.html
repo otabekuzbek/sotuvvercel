@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_macros.html" import score, bar %}
+{% block title %}Dashboard{% endblock %}
+{% block head %}<script src="/static/chart.umd.js"></script>{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Dashboard</h1><div class="sub">Sotuv bo'limi qo'ng'iroqlari va AI baholari</div></div>
+  <div class="tabs">
+    <a href="/?period=today" class="{{ 'on' if period == 'today' }}">Bugun</a>
+    <a href="/?period=7" class="{{ 'on' if period == '7' }}">7 kun</a>
+    <a href="/?period=30" class="{{ 'on' if period == '30' }}">30 kun</a>
+  </div>
+</div>
+
+{% if not connected %}
+<div class="alert warn">amoCRM hali ulanmagan. <a href="/settings">Sozlamalar</a> sahifasida ulang — shundan so'ng qo'ng'iroqlar avtomatik keladi.</div>
+{% endif %}
+
+<div class="grid g4" style="margin-bottom:16px">
+  <div class="card kpi"><div class="label">Qo'ng'iroqlar</div><div class="value">{{ kpi.total }}</div><div class="hint">{{ kpi.minutes }} daqiqa suhbat</div></div>
+  <div class="card kpi"><div class="label">O'rtacha baho</div><div class="value">{{ kpi.avg if kpi.analyzed else '—' }}{% if kpi.analyzed %}<span style="font-size:16px">%</span>{% endif %}</div><div class="hint">skript bo'yicha</div></div>
+  <div class="card kpi"><div class="label">Tahlil qilindi</div><div class="value">{{ kpi.analyzed }}</div><div class="hint">{{ kpi.pending }} ta navbatda</div></div>
+  <div class="card kpi"><div class="label">Kouching kerak</div><div class="value">{{ coaching|length }}</div><div class="hint">o'rtacha &lt; {{ coaching_threshold }}%</div></div>
+</div>
+
+<div class="grid g32" style="margin-bottom:16px">
+  <div class="card">
+    <h2>14 kunlik dinamika</h2>
+    <div class="chart-box"><canvas id="trend"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Skript bosqichlari bo'yicha</h2>
+    {% for s in stages %}
+      <div class="stage-row"><span class="name">{{ s.name }}</span><span class="num">{{ score(s.avg if s.avg else none) }}</span>{{ bar(s.avg) }}</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="grid g32">
+  <div class="card">
+    <div class="row"><h2>Menejerlar reytingi</h2><span class="spacer"></span><a href="/managers">Barchasi →</a></div>
+    {% if rows %}
+    <div class="table-wrap"><table>
+      <tr><th>#</th><th>Menejer</th><th class="num">Qo'ng'iroq</th><th class="num">Sotuv</th><th class="num">Baho</th><th>Eng zaif joy</th></tr>
+      {% for r in rows %}
+      <tr class="click" onclick="location='/managers/{{ r.manager.id }}'">
+        <td class="muted">{{ loop.index }}</td>
+        <td><b>{{ r.manager.name }}</b>{% if r.needs_coaching %} <span class="badge" style="background:var(--mid-soft);color:var(--mid)">kouching</span>{% endif %}</td>
+        <td class="num">{{ r.calls }}</td><td class="num">{{ r.sales }}</td>
+        <td class="num">{{ score(r.avg) }}</td><td class="muted">{{ r.weakest or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </table></div>
+    {% else %}<div class="empty">Bu davrda qo'ng'iroq yo'q</div>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Eng past baholangan</h2>
+    {% for c in lowest %}
+      <a href="/calls/{{ c.id }}" class="row" style="color:inherit;padding:8px 0;border-bottom:1px solid var(--line)">
+        {{ score(c.overall_score) }}
+        <span style="flex:1;min-width:0"><b>{{ c.manager.name if c.manager else '—' }}</b><br>
+        <span class="muted" style="font-size:13px">{{ (c.analysis.summary or '')[:90] }}…</span></span>
+      </a>
+    {% else %}<div class="empty">Hali tahlil yo'q</div>{% endfor %}
+    {% if outcomes %}
+      <h3>Natijalar</h3>
+      <div class="row">{% for k, v in outcomes.items() %}<span class="badge">{{ OUTCOME_LABELS.get(k, k) }}: {{ v }}</span>{% endfor %}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  if (!window.Chart) return;
+  const data = {{ trend|tojson }};
+  const css = getComputedStyle(document.documentElement);
+  const brand = css.getPropertyValue('--brand').trim(), muted = css.getPropertyValue('--muted').trim(), line = css.getPropertyValue('--line').trim();
+  new Chart(document.getElementById('trend'), {
+    data: {
+      labels: data.map(d => d.day),
+      datasets: [
+        { type: 'bar', label: "Qo'ng'iroqlar", data: data.map(d => d.calls), backgroundColor: line, yAxisID: 'y1', borderRadius: 4 },
+        { type: 'line', label: "O'rtacha baho", data: data.map(d => d.avg), borderColor: brand, backgroundColor: brand, tension: .3, spanGaps: true, yAxisID: 'y' }
+      ]
+    },
+    options: {
+      maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: muted, boxWidth: 12 } } },
+      scales: {
+        y: { min: 0, max: 100, position: 'left', ticks: { color: muted }, grid: { color: line } },
+        y1: { position: 'right', beginAtZero: true, ticks: { color: muted, precision: 0 }, grid: { display: false } },
+        x: { ticks: { color: muted }, grid: { display: false } }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

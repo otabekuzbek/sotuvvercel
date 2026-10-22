@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import score, bar, duration %}
+{% block title %}{{ m.name }}{% endblock %}
+{% block head %}<script src="/static/chart.umd.js"></script>{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><a href="/managers" class="muted">← Menejerlar</a><h1 style="margin-top:6px">{{ m.name }}</h1><div class="sub">Oxirgi 30 kun</div></div>
+  <a class="btn" href="/calls?manager={{ m.id }}">Barcha qo'ng'iroqlari</a>
+</div>
+{% if row %}
+<div class="grid g4" style="margin-bottom:16px">
+  <div class="card kpi"><div class="label">O'rtacha baho</div><div class="value">{{ row.avg if row.avg is not none else '—' }}</div></div>
+  <div class="card kpi"><div class="label">Qo'ng'iroqlar</div><div class="value">{{ row.calls }}</div><div class="hint">{{ row.minutes }} daqiqa</div></div>
+  <div class="card kpi"><div class="label">Sotuv / kelishuv</div><div class="value">{{ row.sales }}</div></div>
+  <div class="card kpi"><div class="label">Eng zaif bosqich</div><div class="value" style="font-size:17px;margin-top:10px">{{ row.weakest or '—' }}</div></div>
+</div>
+<div class="grid g2" style="margin-bottom:16px">
+  <div class="card"><h2>Bosqichlar</h2>
+    {% for s in script %}{% set v = row.stages.get(s.key) %}
+      <div class="stage-row"><span class="name">{{ s.name }}</span><span class="num">{{ score(v) }}</span>{{ bar(v or 0) }}</div>
+    {% endfor %}
+  </div>
+  <div class="card"><h2>Baho dinamikasi (14 kun)</h2><div class="chart-box"><canvas id="t"></canvas></div></div>
+</div>
+{% endif %}
+<div class="grid g32">
+  <div class="card table-wrap"><h2>Oxirgi qo'ng'iroqlar</h2>
+    <table>
+      {% for c in calls %}
+      <tr class="click" onclick="location='/calls/{{ c.id }}'">
+        <td>{{ to_local(c.call_time).strftime('%d.%m %H:%M') }}</td><td class="muted">{{ (c.analysis.summary or '')[:80] }}…</td>
+        <td class="num">{{ duration(c.duration or 0) }}</td><td class="num">{{ score(c.overall_score) }}</td></tr>
+      {% else %}<tr><td class="empty">Tahlil qilingan qo'ng'iroq yo'q</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div class="card"><h2>Ko'p takrorlanadigan tavsiyalar</h2>
+    {% for title, n in top_recs %}<div class="rec"><div class="t">{{ title }}</div><div class="muted">{{ n }} ta qo'ng'iroqda</div></div>
+    {% else %}<div class="empty">Hali yo'q</div>{% endfor %}
+    <a class="btn primary" href="/assistant?q={{ ('%s uchun kouching rejasi tuzib ber' % m.name)|urlencode }}" style="margin-top:6px">AI'dan kouching rejasi olish</a>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  if (!window.Chart || !document.getElementById('t')) return;
+  const d = {{ trend|tojson }}, css = getComputedStyle(document.documentElement);
+  const brand = css.getPropertyValue('--brand').trim(), muted = css.getPropertyValue('--muted').trim(), line = css.getPropertyValue('--line').trim();
+  new Chart(document.getElementById('t'), { type: 'line',
+    data: { labels: d.map(x => x.day), datasets: [{ label: 'Baho', data: d.map(x => x.avg), borderColor: brand, backgroundColor: brand, spanGaps: true, tension: .3 }] },
+    options: { maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { min: 0, max: 100, ticks: { color: muted }, grid: { color: line } }, x: { ticks: { color: muted }, grid: { display: false } } } } });
+})();
+</script>
+{% endblock %}

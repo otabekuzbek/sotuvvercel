@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kirish · {{ app_name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <form class="card login" method="post" action="/login">
+    <div class="logo" style="padding:0 0 18px"><span class="logo-mark">S</span>{{ app_name }}</div>
+    <h1 style="margin-bottom:4px">Kirish</h1>
+    <p class="sub" style="margin:0 0 18px">Sotuv qo'ng'iroqlari AI tahlili</p>
+    {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+    <label for="u">Login</label>
+    <input id="u" name="username" autocomplete="username" required style="margin-bottom:12px">
+    <label for="pw">Parol</label>
+    <input id="pw" name="password" type="password" autocomplete="current-password" required style="margin-bottom:18px">
+    <button class="btn primary" style="width:100%;justify-content:center">Kirish</button>
+  </form>
+</div>
+</body>
+</html>

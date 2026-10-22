@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %} · {{ app_name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo"><span class="logo-mark">S</span>{{ app_name }}</div>
+    {% set p = request.url.path %}
+    <nav class="nav">
+      <a href="/" class="{{ 'active' if p == '/' }}">Dashboard</a>
+      <a href="/calls" class="{{ 'active' if p.startswith('/calls') }}">Qo'ng'iroqlar</a>
+      <a href="/managers" class="{{ 'active' if p.startswith('/managers') }}">Menejerlar</a>
+      <a href="/assistant" class="{{ 'active' if p.startswith('/assistant') }}">AI yordamchi</a>
+      <div class="sep"></div>
+      <a href="/script" class="{{ 'active' if p.startswith('/script') }}">Sotuv skripti</a>
+      <a href="/settings" class="{{ 'active' if p.startswith('/settings') }}">Sozlamalar</a>
+      <a href="/logout">Chiqish</a>
+    </nav>
+  </aside>
+  <main>{% block content %}{% endblock %}</main>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}AI yordamchi{% endblock %}
+{% block content %}
+<div class="topbar"><div><h1>AI yordamchi</h1><div class="sub">Sotuv bo'limi haqida istalgan savolni bering</div></div></div>
+{% if not enabled %}<div class="alert warn">AI yordamchi uchun .env faylida ANTHROPIC_API_KEY kerak.</div>{% endif %}
+<div class="card chat">
+  <div class="chat-log" id="log">
+    <div class="msg bot">Salom! Men qo'ng'iroqlar tahlili asosida javob beraman. Masalan, bugungi natijalar, kimga kouching kerak yoki qaysi bosqichda ko'p xato qilinayotganini so'rang.</div>
+  </div>
+  <div class="chips" id="chips">
+    <button class="chip">Bugungi natijalar qanday?</button>
+    <button class="chip">Kimga kouching kerak va nima uchun?</button>
+    <button class="chip">Bu hafta eng ko'p qaysi xato qilindi?</button>
+    <button class="chip">Kecha bilan bugunni solishtir</button>
+  </div>
+  <form class="chat-form" id="f">
+    <input id="q" placeholder="Savol yozing…" autocomplete="off">
+    <button class="btn primary" id="send">Yuborish</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const log = document.getElementById('log'), q = document.getElementById('q'), btn = document.getElementById('send');
+const history = [];
+function add(role, text) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+  d.textContent = text; log.append(d); log.scrollTop = log.scrollHeight; return d;
+}
+async function ask(text) {
+  if (!text.trim()) return;
+  add('user', text); q.value = ''; btn.disabled = true;
+  const wait = add('bot', 'O\'ylayapman…');
+  try {
+    const r = await fetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: text, history }) });
+    const j = await r.json();
+    wait.textContent = j.answer || ('Xato: ' + (j.error || r.status));
+    if (j.answer) history.push({ role: 'user', content: text }, { role: 'assistant', content: j.answer });
+  } catch (e) { wait.textContent = 'Ulanishda xato: ' + e.message; }
+  btn.disabled = false; q.focus();
+}
+document.getElementById('f').addEventListener('submit', e => { e.preventDefault(); ask(q.value); });
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => ask(c.textContent)));
+const pre = new URLSearchParams(location.search).get('q'); if (pre) ask(pre);
+</script>
+{% endblock %}

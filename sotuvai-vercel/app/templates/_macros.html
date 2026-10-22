@@ -1,0 +1,14 @@
+{% macro score(v) -%}
+{%- if v is none -%}<span class="score s-none">—</span>
+{%- else -%}<span class="score {{ 's-good' if v >= 75 else ('s-mid' if v >= 50 else 's-bad') }}">{{ v|round|int }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro bar(v) -%}
+<div class="bar"><span class="{{ 'good' if v >= 75 else ('mid' if v >= 50 else 'bad') }}" style="width: {{ v or 0 }}%"></span></div>
+{%- endmacro %}
+
+{% macro duration(s) -%}{{ (s // 60)|int }}:{{ '%02d' % (s % 60) }}{%- endmacro %}
+
+{% macro status(s) -%}
+<span class="badge" {% if s == 'failed' %}style="background:var(--bad-soft);color:var(--bad)"{% elif s in ('new','transcribing','analyzing') %}style="background:var(--brand-soft);color:var(--brand)"{% endif %}>{{ STATUS_LABELS.get(s, s) }}</span>
+{%- endmacro %}

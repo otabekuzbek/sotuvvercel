@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Sotuv skripti{% endblock %}
+{% block content %}
+<div class="topbar"><div><h1>Sotuv skripti</h1><div class="sub">AI har bir qo'ng'iroqni shu bosqichlar va mezonlar bo'yicha baholaydi</div></div></div>
+{% if saved %}<div class="alert">Saqlandi. Yangi qo'ng'iroqlar shu skript bo'yicha baholanadi.</div>{% endif %}
+<form method="post" action="/script" class="grid g32">
+  <div class="card">
+    <div class="row"><h2>Bosqichlar</h2><span class="spacer"></span><span class="muted" id="wsum"></span></div>
+    <div id="stages">
+      {% for s in script %}
+      <div class="stage-edit">
+        <input type="hidden" name="key" value="{{ s.key }}">
+        <input name="name" value="{{ s.name }}" placeholder="Bosqich nomi" required>
+        <input name="weight" type="number" min="0" max="100" value="{{ s.weight }}" title="Vazn, %" class="w">
+        <button type="button" class="btn" onclick="this.closest('.stage-edit').remove(); sum()" title="O'chirish">✕</button>
+        <textarea name="criteria" placeholder="Menejer nima qilishi kerak? AI shu mezon bilan baholaydi.">{{ s.criteria }}</textarea>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="row"><button type="button" class="btn" onclick="addStage()">+ Bosqich qo'shish</button><span class="spacer"></span><button class="btn primary">Saqlash</button></div>
+  </div>
+  <div class="card">
+    <h2>Kompaniya haqida</h2>
+    <p class="muted" style="margin-top:0">Mahsulotlar, narxlar, afzalliklar, tez-tez uchraydigan e'tirozlar va ularga to'g'ri javoblar. AI tavsiyalarni shunga moslab beradi.</p>
+    <textarea name="company_context" style="min-height:380px">{{ company_context }}</textarea>
+  </div>
+</form>
+<template id="tpl">
+  <div class="stage-edit">
+    <input type="hidden" name="key" value="">
+    <input name="name" placeholder="Bosqich nomi" required>
+    <input name="weight" type="number" min="0" max="100" value="10" class="w">
+    <button type="button" class="btn" onclick="this.closest('.stage-edit').remove(); sum()">✕</button>
+    <textarea name="criteria" placeholder="Mezonlar"></textarea>
+  </div>
+</template>
+{% endblock %}
+{% block scripts %}
+<script>
+function sum() {
+  const s = [...document.querySelectorAll('.w')].reduce((a, i) => a + (+i.value || 0), 0);
+  const el = document.getElementById('wsum');
+  el.textContent = 'Vaznlar yig\'indisi: ' + s + '%' + (s === 100 ? '' : ' (100% bo\'lishi tavsiya etiladi)');
+}
+function addStage() { document.getElementById('stages').append(document.getElementById('tpl').content.cloneNode(true)); sum(); }
+document.addEventListener('input', e => { if (e.target.classList.contains('w')) sum(); });
+sum();
+</script>
+{% endblock %}

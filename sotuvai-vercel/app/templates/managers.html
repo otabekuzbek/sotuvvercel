@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import score %}
+{% block title %}Menejerlar{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Menejerlar</h1><div class="sub">Skript bosqichlari bo'yicha o'rtacha baholar</div></div>
+  <div class="tabs">
+    <a href="/managers?period=7" class="{{ 'on' if period == '7' }}">7 kun</a>
+    <a href="/managers?period=30" class="{{ 'on' if period == '30' }}">30 kun</a>
+  </div>
+</div>
+<div class="card table-wrap">
+  {% if rows %}
+  <table>
+    <tr><th>#</th><th>Menejer</th><th class="num">Qo'ng'iroq</th><th class="num">Daqiqa</th><th class="num">Sotuv</th>
+      {% for s in script %}<th class="num" title="{{ s.name }}">{{ s.name.split(' ')[0] }}</th>{% endfor %}
+      <th class="num">Umumiy</th></tr>
+    {% for r in rows %}
+    <tr class="click" onclick="location='/managers/{{ r.manager.id }}'">
+      <td class="muted">{{ loop.index }}</td>
+      <td><b>{{ r.manager.name }}</b>{% if r.needs_coaching %}<br><span class="badge" style="background:var(--mid-soft);color:var(--mid)">kouching kerak</span>{% endif %}</td>
+      <td class="num">{{ r.calls }}</td><td class="num">{{ r.minutes }}</td><td class="num">{{ r.sales }}</td>
+      {% for s in script %}<td class="num">{{ score(r.stages.get(s.key)) }}</td>{% endfor %}
+      <td class="num">{{ score(r.avg) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">Bu davrda ma'lumot yo'q</div>{% endif %}
+</div>
+{% endblock %}
