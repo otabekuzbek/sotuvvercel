@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import amocrm, analyzer, assistant, config, pipeline, telegram
+from . import settings_store as store
 from .db import (DEFAULT_COMPANY_CONTEXT, Call, Manager, SessionLocal, get_script, init_db, kv_get,
                  kv_set)
 from .stats import (daily_trend, kpis, local_day_bounds, manager_table, outcome_counts, period_bounds,
@@ -71,16 +72,10 @@ _start_lock = threading.Lock()
 
 
 def check_setup() -> list[str]:
+    """Faqat chetlab bo'lmaydigan talab: Vercel'da doimiy baza. Qolgani avtomatik yoki ilova ichida sozlanadi."""
     errors = []
-    if not config.DEMO_MODE:
-        if config.SECRET_KEY in ("", "change-me-please"):
-            errors.append("SECRET_KEY — uzun tasodifiy satr (masalan, openssl rand -hex 32)")
-        if config.ADMIN_PASSWORD in ("", "admin"):
-            errors.append("ADMIN_PASSWORD — kirish uchun kuchli parol")
-        if config.IS_VERCEL and not (config.env("DATABASE_URL") or config.env("POSTGRES_URL")):
-            errors.append("DATABASE_URL — Vercel > Storage > Neon (Postgres) ni loyihaga ulang")
-        if config.IS_VERCEL and not config.CRON_SECRET:
-            errors.append("CRON_SECRET — cron so'rovlarini himoyalash uchun tasodifiy satr")
+    if config.IS_VERCEL and not config.DEMO_MODE and not (config.env("DATABASE_URL") or config.env("POSTGRES_URL")):
+        errors.append("db")
     return errors
 
 
@@ -98,12 +93,16 @@ def ensure_started() -> None:
                 startup()
             except Exception as e:  # noqa: BLE001
                 log.exception("Ishga tushirishda xato")
-                SETUP_ERRORS.append(f"Ma'lumotlar bazasiga ulanib bo'lmadi: {e}")
+                SETUP_ERRORS.append(f"dberr:{e}")
         _started = True
 
 
 def startup() -> None:
     init_db()
+    # Maxfiy kalitlar: muhit o'zgaruvchisi bo'lmasa, bir marta yaratilib bazada saqlanadi
+    config.SECRET_KEY = store.get_or_create_secret("secret_key", config.env("SECRET_KEY"))
+    config.CRON_KEY = store.get_or_create_secret("cron_key", config.CRON_SECRET)
+    store.apply(force=True)
     if config.DEMO_MODE:
         from .demo import seed_if_empty
         seed_if_empty()
@@ -119,25 +118,50 @@ def startup() -> None:
 
 # ---------- Avtorizatsiya ----------
 
-PUBLIC_PATHS = ("/login", "/static", "/oauth/amocrm/callback", "/health", "/api/cron/")
+PUBLIC_PATHS = ("/login", "/static", "/oauth/amocrm/callback", "/health", "/api/cron/", "/setup")
 
 
 @app.middleware("http")
 async def require_login(request: Request, call_next):
     ensure_started()
-    if SETUP_ERRORS and not request.url.path.startswith(("/static", "/health")):
-        return templates.TemplateResponse(request, "setup.html", {"errors": SETUP_ERRORS,
-                                                                  "is_vercel": config.IS_VERCEL}, status_code=503)
-    if not request.url.path.startswith(PUBLIC_PATHS) and not request.session.get("user"):
+    path = request.url.path
+    if SETUP_ERRORS and path.startswith(("/static", "/health")):
+        return await call_next(request)
+    if SETUP_ERRORS:
+        err = SETUP_ERRORS[0]
+        return templates.TemplateResponse(request, "setup.html", {
+            "need_db": err == "db", "db_error": err[6:] if err.startswith("dberr:") else None,
+            "is_vercel": config.IS_VERCEL}, status_code=503)
+    store.apply()
+    templates.env.globals["coaching_threshold"] = config.COACHING_THRESHOLD
+    if not path.startswith(("/static", "/health", "/api/cron/", "/setup")):
+        with SessionLocal() as db:
+            if not store.admin_exists(db):
+                return RedirectResponse("/setup")
+    if not path.startswith(PUBLIC_PATHS) and not request.session.get("user"):
         if request.url.path.startswith("/api/"):
             return JSONResponse({"error": "login kerak"}, status_code=401)
         return RedirectResponse("/login")
     return await call_next(request)
 
 
+class LazySessionMiddleware(SessionMiddleware):
+    """Kalit bazadan olinadi, shuning uchun imzolovchi birinchi so'rovda (ishga tushgandan keyin) o'rnatiladi."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            ensure_started()
+            key = config.SECRET_KEY
+            if getattr(self, "_key", None) != key:
+                import itsdangerous
+                self.signer = itsdangerous.TimestampSigner(str(key))
+                self._key = key
+            self.security_flags = "httponly; samesite=lax" + ("; secure" if scope.get("scheme") == "https" or config.IS_VERCEL else "")
+        await super().__call__(scope, receive, send)
+
+
 # Session middleware tashqi qatlam bo'lishi uchun require_login'dan keyin qo'shiladi
-app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY, max_age=14 * 86400, same_site="lax",
-                   https_only=config.PUBLIC_URL.startswith("https://"))
+app.add_middleware(LazySessionMiddleware, secret_key="pending", max_age=14 * 86400, same_site="lax")
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -145,9 +169,37 @@ def login_page(request: Request):
     return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
+@app.get("/setup", response_class=HTMLResponse)
+def setup_page(request: Request):
+    with SessionLocal() as db:
+        if store.admin_exists(db):
+            return RedirectResponse("/login")
+    return templates.TemplateResponse(request, "first_run.html", {"error": None})
+
+
+@app.post("/setup")
+def setup_create(request: Request, username: str = Form(...), password: str = Form(...), password2: str = Form(...)):
+    username = username.strip()
+    error = None
+    if len(username) < 3:
+        error = "Login kamida 3 belgi bo'lsin"
+    elif len(password) < 8:
+        error = "Parol kamida 8 belgi bo'lsin"
+    elif password != password2:
+        error = "Parollar bir xil emas"
+    if error:
+        return templates.TemplateResponse(request, "first_run.html", {"error": error}, status_code=400)
+    with SessionLocal() as db:
+        if not store.create_admin(db, username, password):
+            return RedirectResponse("/login", status_code=303)
+    request.session["user"] = username
+    return RedirectResponse("/settings?msg=Xush+kelibsiz!+Endi+kalitlarni+kiriting", status_code=303)
+
+
 @app.post("/login")
 def login(request: Request, username: str = Form(...), password: str = Form(...)):
-    ok = hmac.compare_digest(username, config.ADMIN_USERNAME) and hmac.compare_digest(password, config.ADMIN_PASSWORD)
+    with SessionLocal() as db:
+        ok = store.check_login(db, username.strip(), password)
     if not ok:
         return templates.TemplateResponse(request, "login.html", {"error": "Login yoki parol noto'g'ri"}, status_code=401)
     request.session["user"] = username
@@ -342,6 +394,9 @@ def settings_page(request: Request, msg: str = ""):
             "keys": {"Google STT": bool(config.GOOGLE_API_KEY), "Claude": bool(config.ANTHROPIC_API_KEY),
                      "Telegram": telegram.is_configured()},
             "cfg": config, "managers": db.query(Manager).order_by(Manager.name).all(),
+            "fields": store.FIELDS, "values": store.current_values(),
+            "cron_url": f"{config.PUBLIC_URL}/api/cron/sync?key={config.CRON_KEY}",
+            "has_db_admin": bool(kv_get(db, "admin")),
             "counts": {s: db.query(Call).filter(Call.status == s).count() for s in STATUS_LABELS},
         })
 
@@ -379,6 +434,38 @@ def sync_now():
         return RedirectResponse("/settings?" + urlencode({"msg": msg}), status_code=303)
     threading.Thread(target=run_sync, daemon=True).start()
     return RedirectResponse("/settings?msg=Sinxronlash+boshlandi.+Bir+necha+daqiqadan+so'ng+yangilang", status_code=303)
+
+
+@app.post("/settings/integrations")
+async def save_integrations(request: Request):
+    form = await request.form()
+    with SessionLocal() as db:
+        store.save(db, {k: form.get(k) for k in store.FIELD_TYPES if k in form or store.FIELD_TYPES[k][0] == "bool"})
+    return RedirectResponse("/settings?msg=Sozlamalar+saqlandi#ulanishlar", status_code=303)
+
+
+@app.post("/settings/telegram-detect")
+async def telegram_detect(request: Request):
+    form = await request.form()   # formadagi yangi token avval saqlanadi
+    with SessionLocal() as db:
+        store.save(db, {k: form.get(k) for k in store.FIELD_TYPES if k in form or store.FIELD_TYPES[k][0] == "bool"})
+    if not config.TELEGRAM_BOT_TOKEN:
+        return RedirectResponse("/settings?msg=Avval+bot+tokenini+saqlang#ulanishlar", status_code=303)
+    chat = telegram.detect_chat_id()
+    if not chat:
+        return RedirectResponse("/settings?" + urlencode({"msg": "Chat topilmadi: botni guruhga qo'shing, guruhga istalgan xabar yozing va qayta bosing"}) + "#ulanishlar", status_code=303)
+    with SessionLocal() as db:
+        store.save(db, {"TELEGRAM_CHAT_ID": chat["id"]})
+    return RedirectResponse("/settings?" + urlencode({"msg": f"Chat aniqlandi: {chat['title']}"}) + "#ulanishlar", status_code=303)
+
+
+@app.post("/settings/password")
+def change_password(request: Request, password: str = Form(...), password2: str = Form(...)):
+    if len(password) < 8 or password != password2:
+        return RedirectResponse("/settings?msg=Xato:+parol+kamida+8+belgi+va+ikkalasi+bir+xil+bo'lsin", status_code=303)
+    with SessionLocal() as db:
+        store.change_password(db, password)
+    return RedirectResponse("/settings?msg=Parol+o'zgartirildi", status_code=303)
 
 
 @app.post("/settings/managers")
@@ -427,11 +514,21 @@ def call_status(call_id: int):
 
 # ---------- Cron (Vercel Cron yoki tashqi cron xizmati chaqiradi) ----------
 
+_last_ua_cron = {"at": float("-inf")}
+
+
 def cron_authorized(request: Request) -> bool:
-    if not config.CRON_SECRET:
-        return False
     token = request.headers.get("authorization", "").removeprefix("Bearer ").strip() or request.query_params.get("key", "")
-    return hmac.compare_digest(token, config.CRON_SECRET)
+    for secret in (config.CRON_SECRET, getattr(config, "CRON_KEY", "")):
+        if secret and token and hmac.compare_digest(token, secret):
+            return True
+    # CRON_SECRET qo'yilmagan bo'lsa Vercel Cron sarlavhasiz keladi — uni taniymiz, lekin tez-tez chaqirtirmaymiz
+    if not config.CRON_SECRET and config.IS_VERCEL and request.headers.get("user-agent", "").startswith("vercel-cron"):
+        import time as _t
+        if _t.monotonic() - _last_ua_cron["at"] > 120:
+            _last_ua_cron["at"] = _t.monotonic()
+            return True
+    return False
 
 
 @app.get("/api/cron/sync")

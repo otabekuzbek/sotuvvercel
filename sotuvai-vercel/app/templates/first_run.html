@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Birinchi sozlash · {{ app_name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <form class="card login" method="post" action="/setup" style="max-width:400px">
+    <div class="logo" style="padding:0 0 18px"><span class="logo-mark">S</span>{{ app_name }}</div>
+    <h1 style="margin-bottom:4px">Xush kelibsiz!</h1>
+    <p class="sub" style="margin:0 0 18px">Administrator akkauntini yarating. Keyin shu login va parol bilan kirasiz.</p>
+    {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+    <label for="u">Login</label>
+    <input id="u" name="username" value="admin" autocomplete="username" required minlength="3" style="margin-bottom:12px">
+    <label for="p1">Parol (kamida 8 belgi)</label>
+    <input id="p1" name="password" type="password" autocomplete="new-password" required minlength="8" style="margin-bottom:12px">
+    <label for="p2">Parolni takrorlang</label>
+    <input id="p2" name="password2" type="password" autocomplete="new-password" required minlength="8" style="margin-bottom:18px">
+    <button class="btn primary" style="width:100%;justify-content:center">Akkaunt yaratish</button>
+  </form>
+</div>
+</body>
+</html>

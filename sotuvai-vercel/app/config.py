@@ -69,6 +69,7 @@ DATABASE_URL = _database_url()
 
 # Cron so'rovlarini himoyalash: Vercel Cron shu qiymatni "Authorization: Bearer ..." bilan yuboradi
 CRON_SECRET = env("CRON_SECRET")
+CRON_KEY = CRON_SECRET  # tashqi cron uchun kalit; bo'lmasa ishga tushishda bazada yaratiladi
 
 # amoCRM
 AMO_SUBDOMAIN = env("AMO_SUBDOMAIN")            # masalan: mycompany  (mycompany.amocrm.ru)

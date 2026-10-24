@@ -192,3 +192,28 @@ def test_vercel_mode(tmp_path):
     out = subprocess.run([sys.executable, "-c", VERCEL_SCRIPT, str(Path(__file__).resolve().parent.parent)],
                          env=env, capture_output=True, text=True)
     assert "VERCEL_OK" in out.stdout, out.stderr[-2000:]
+
+
+def test_zero_config_vercel(tmp_path):
+    """Faqat VERCEL=1 va baza manzili: admin yaratish, kalitlarni ilovada kiritish, ikkinchi nusxada sessiya."""
+    script = str(Path(__file__).with_name("zeroconf_check.py"))
+    root = str(Path(__file__).resolve().parent.parent)
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "VERCEL": "1",
+           "DATABASE_URL": f"sqlite:///{tmp_path / 'zc.db'}"}
+    one = subprocess.run([sys.executable, script, root, "1"], env=env, capture_output=True, text=True)
+    lines = dict(l.split(" ", 1) for l in one.stdout.splitlines() if l.startswith(("COOKIE", "CRONKEY")))
+    assert "COOKIE" in lines, one.stderr[-2000:]
+    two = subprocess.run([sys.executable, script, root, "2", lines["COOKIE"], lines["CRONKEY"]], env=env,
+                         capture_output=True, text=True)
+    assert "STEP2_OK" in two.stdout, two.stderr[-2000:]
+
+
+def test_vercel_without_database_shows_steps(tmp_path):
+    code = ("import sys; sys.path.insert(0, sys.argv[1]);"
+            "from fastapi.testclient import TestClient; from app.main import app;"
+            "c = TestClient(app, base_url='https://x'); r = c.get('/');"
+            "print(r.status_code, 'Neon' in r.text, c.get('/static/style.css').status_code)")
+    out = subprocess.run([sys.executable, "-c", code, str(Path(__file__).resolve().parent.parent)],
+                         env={"PATH": os.environ["PATH"], "HOME": str(tmp_path), "VERCEL": "1"},
+                         capture_output=True, text=True)
+    assert out.stdout.strip().endswith("503 True 200"), out.stderr[-2000:]

@@ -2,23 +2,27 @@
 <html lang="uz">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sozlash kerak · {{ app_name }}</title>
+  <title>Baza kerak · {{ app_name }}</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div class="login-wrap">
-  <div class="card" style="max-width:560px;width:100%">
+  <div class="card" style="max-width:580px;width:100%">
     <div class="logo" style="padding:0 0 18px"><span class="logo-mark">S</span>{{ app_name }}</div>
-    <h1 style="margin-bottom:6px">Ilova ishga tushdi, lekin sozlash kerak</h1>
-    <p class="sub" style="margin:0 0 16px">Quyidagi muhit o'zgaruvchilarini kiriting:</p>
-    <ul class="list" style="margin-bottom:18px">
-      {% for e in errors %}<li>{{ e }}</li>{% endfor %}
-    </ul>
-    {% if is_vercel %}
-    <div class="alert">Vercel: loyiha → <b>Settings → Environment Variables</b> ga qo'shing, so'ng
-      <b>Deployments → ⋯ → Redeploy</b> qiling. Postgres uchun: <b>Storage → Create Database → Neon</b>.</div>
+    {% if need_db %}
+      <h1 style="margin-bottom:6px">Bitta qadam qoldi: ma'lumotlar bazasi</h1>
+      <p class="sub" style="margin:0 0 16px">Ilova ishlayapti. Ma'lumotlarni saqlash uchun bepul Postgres bazasini ulang — qolgan hamma narsa avtomatik sozlanadi.</p>
+      <ol class="list" style="margin-bottom:18px">
+        <li>Vercel'da loyihangiz → yuqoridagi <b>Storage</b> bo'limi</li>
+        <li><b>Create Database</b> → <b>Neon</b> → <b>Continue</b> → bepul tarif → <b>Create</b></li>
+        <li>Loyihangizni tanlab <b>Connect</b> bosing</li>
+        <li><b>Deployments</b> → oxirgi deploy yonidagi <b>⋯</b> → <b>Redeploy</b></li>
+      </ol>
+      <p class="muted" style="margin:0">Shundan so'ng shu sahifani yangilang — administrator parolini yaratish oynasi chiqadi.</p>
     {% else %}
-    <div class="alert">Qiymatlarni <code>.env</code> fayliga yozib, ilovani qayta ishga tushiring.</div>
+      <h1 style="margin-bottom:6px">Ma'lumotlar bazasiga ulanib bo'lmadi</h1>
+      <div class="alert err" style="word-break:break-word">{{ db_error }}</div>
+      <p class="muted">Vercel → Storage bo'limida baza faol ekanini va loyihaga ulanganini tekshiring, so'ng Redeploy qiling.</p>
     {% endif %}
   </div>
 </div>

@@ -3,6 +3,23 @@
 amoCRM'dagi qo'ng'iroq yozuvlarini avtomatik oladi, Google Speech-to-Text bilan matnga o'giradi (o'zbek + rus),
 Claude bilan sotuv skriptingiz bo'yicha baholaydi va har bir menejerga aniq tavsiyalar beradi.
 
+## Vercel'ga 3 qadamda joylash
+
+Hech qanday muhit o'zgaruvchisi kiritish shart emas: maxfiy kalitlar avtomatik yaratiladi,
+administrator parolini birinchi ochishda yaratasiz, API kalitlarini ilovaning **Sozlamalar** sahifasida kiritasiz.
+
+**Yangi loyiha (bir tugma — Neon bazasi ham o'zi yaratiladi):**
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fotabekuzbek%2Fsotuvvercel&project-name=sotuvai&repository-name=sotuvai&products=[{%22type%22:%22integration%22,%22integrationSlug%22:%22neon%22,%22productSlug%22:%22neon%22,%22protocol%22:%22storage%22}])
+
+**Mavjud loyiha:**
+1. Vercel → loyiha → **Storage → Create Database → Neon → Create** → loyihaga **Connect**.
+2. **Deployments → ⋯ → Redeploy**.
+3. Saytni oching → administrator login/parolini yarating → **Sozlamalar → Ulanishlar va kalitlar** ga amoCRM, Google va Claude kalitlarini kiriting → **Saqlash** → **Hozir sinxronlash**.
+
+Ixtiyoriy: kun davomida avtomatik tahlil uchun Sozlamalar sahifasidagi cron manzilini cron-job.org ga har 10 daqiqaga qo'ying
+(Vercel bepul tarifida o'z cron'i kuniga 1 marta ishlaydi).
+
 ## Nima qiladi
 
 | Qism | Tavsif |

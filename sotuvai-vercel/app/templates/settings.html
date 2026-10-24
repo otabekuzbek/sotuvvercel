@@ -4,36 +4,87 @@
 <div class="topbar"><div><h1>Sozlamalar</h1><div class="sub">Ulanishlar va ish jarayoni</div></div></div>
 {% if msg %}<div class="alert {{ 'err' if 'Xato' in msg or 'xato' in msg else '' }}">{{ msg }}</div>{% endif %}
 
+{% set missing = [] %}
+{% if not amo_configured %}{% set _ = missing.append("amoCRM") %}{% endif %}
+{% if not keys['Google STT'] %}{% set _ = missing.append("Google STT") %}{% endif %}
+{% if not keys['Claude'] %}{% set _ = missing.append("Claude") %}{% endif %}
+{% if missing %}
+<div class="alert warn">Qo'ng'iroqlarni tahlil qilish uchun quyidagi <b>Ulanishlar</b> bo'limida kalitlarni kiriting: {{ missing|join(', ') }}.</div>
+{% endif %}
+
 <div class="grid g2" style="margin-bottom:16px">
   <div class="card">
-    <h2>amoCRM</h2>
+    <h2>amoCRM holati</h2>
     {% if not amo_configured %}
-      <div class="alert warn">.env faylida <code>AMO_SUBDOMAIN</code> va <code>AMO_CLIENT_ID</code> / <code>AMO_CLIENT_SECRET</code> (yoki <code>AMO_LONG_LIVED_TOKEN</code>) ni to'ldiring va ilovani qayta ishga tushiring.</div>
-      <p class="muted">amoCRM'da integratsiya yaratishda Redirect URI sifatida quyidagini kiriting:<br><code>{{ redirect_uri }}</code></p>
+      <p class="muted" style="margin-top:0">Pastdagi formaga subdomen va uzoq muddatli tokenni kiriting.</p>
     {% else %}
       <p><span class="dot {{ 'on' if connected else 'off' }}"></span>{{ 'Ulangan' if connected else 'Ulanmagan' }}
         {% if account %} — <b>{{ account }}</b>{% endif %} <span class="muted">({{ cfg.AMO_SUBDOMAIN }}.{{ cfg.AMO_BASE_DOMAIN }})</span></p>
       {% if last_sync %}<p class="muted">Oxirgi sinxronlash: <span data-ts="{{ last_sync }}"></span></p>{% endif %}
       <div class="row">
-        {% if not uses_long_token %}<a class="btn {{ '' if connected else 'primary' }}" href="/oauth/amocrm/start">{{ 'Qayta ulash' if connected else "amoCRM'ni ulash" }}</a>{% endif %}
+        {% if not uses_long_token and cfg.AMO_CLIENT_ID %}<a class="btn {{ '' if connected else 'primary' }}" href="/oauth/amocrm/start">{{ 'Qayta ulash' if connected else "amoCRM'ni ulash (OAuth)" }}</a>{% endif %}
         {% if connected %}<form method="post" action="/settings/sync"><button class="btn primary">Hozir sinxronlash</button></form>{% endif %}
       </div>
-      <p class="muted" style="font-size:13px">Har {{ cfg.SYNC_INTERVAL_MIN }} daqiqada yangi qo'ng'iroqlar avtomatik olinadi. {{ cfg.MIN_CALL_SECONDS }} soniyadan qisqa qo'ng'iroqlar tahlil qilinmaydi.
-        Tahlildan so'ng {% if cfg.AMO_ADD_NOTES %}lid kartochkasiga xulosa yoziladi{% endif %}{% if cfg.AMO_ADD_NOTES and cfg.AMO_CREATE_TASKS %} va {% endif %}{% if cfg.AMO_CREATE_TASKS %}keyingi qadamlar vazifa sifatida qo'shiladi{% endif %}.</p>
+      {% if not uses_long_token and cfg.AMO_CLIENT_ID %}<p class="muted" style="font-size:13px">OAuth Redirect URI: <code>{{ redirect_uri }}</code></p>{% endif %}
     {% endif %}
+    <p class="muted" style="font-size:13px">{{ cfg.MIN_CALL_SECONDS }} soniyadan qisqa qo'ng'iroqlar tahlil qilinmaydi.</p>
   </div>
   <div class="card">
     <h2>Xizmatlar</h2>
     <table>
       {% for name, ok in keys.items() %}
-      <tr><td>{{ name }}</td><td><span class="dot {{ 'on' if ok else 'off' }}"></span>{{ 'Sozlangan' if ok else '.env faylida kalit yo\'q' }}</td></tr>
+      <tr><td>{{ name }}</td><td><span class="dot {{ 'on' if ok else 'off' }}"></span>{{ 'Sozlangan' if ok else 'Kalit kiritilmagan' }}</td></tr>
       {% endfor %}
       <tr><td>Model</td><td class="muted">{{ cfg.CLAUDE_MODEL }}</td></tr>
       <tr><td>Nutq tili</td><td class="muted">{{ cfg.STT_LANGUAGE }} + {{ cfg.STT_ALT_LANGUAGES|join(', ') }}</td></tr>
-      <tr><td>Kunlik hisobot</td><td class="muted">har kuni {{ cfg.REPORT_TIME }}</td></tr>
     </table>
     {% if keys['Telegram'] %}<form method="post" action="/settings/telegram-test" style="margin-top:12px"><button class="btn">Telegram'ga sinov hisobot</button></form>{% endif %}
   </div>
+</div>
+
+<form class="card" id="ulanishlar" method="post" action="/settings/integrations" style="margin-bottom:16px">
+  <div class="row"><h2 style="margin:0">Ulanishlar va kalitlar</h2><span class="spacer"></span><button class="btn primary">Saqlash</button></div>
+  <p class="muted">Kalitlar ma'lumotlar bazasida saqlanadi. Maxfiy maydonni bo'sh qoldirsangiz, eski qiymat o'zgarmaydi.</p>
+  <div class="grid g2">
+  {% for group, items in fields.items() %}
+    <div>
+      <h3>{{ group }}</h3>
+      {% for key, label, secret, kind, help in items %}
+        <div style="margin-bottom:12px">
+          {% if kind == 'bool' %}
+            <label style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="checkbox" name="{{ key }}" style="width:auto" {{ 'checked' if values[key] }}> {{ label }}</label>
+          {% else %}
+            <label for="f_{{ key }}">{{ label }}</label>
+            <input id="f_{{ key }}" name="{{ key }}" {% if secret %}type="password" placeholder="{{ values[key] or 'kiritilmagan' }}" autocomplete="new-password"{% else %}value="{{ values[key] }}"{% endif %}>
+            {% if help %}<div class="muted" style="font-size:12px;margin-top:3px">{{ help }}</div>{% endif %}
+          {% endif %}
+          {% if key == 'TELEGRAM_CHAT_ID' %}<button class="btn" formaction="/settings/telegram-detect" style="margin-top:6px">Chat ID ni avtomatik aniqlash</button>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+  </div>
+  <div class="row"><span class="spacer"></span><button class="btn primary">Saqlash</button></div>
+</form>
+
+<div class="grid g2" style="margin-bottom:16px">
+  <div class="card">
+    <h2>Avtomatik tahlil (cron)</h2>
+    {% if cfg.IS_VERCEL %}
+    <p class="muted" style="margin-top:0">Vercel bepul tarifida qo'ng'iroqlar kuniga 1 marta avtomatik olinadi. Kun davomida tahlil qilinishi uchun
+      <a href="https://cron-job.org" target="_blank" rel="noopener">cron-job.org</a> da bepul vazifa yarating: quyidagi manzil, har 10 daqiqa, timeout 300 soniya.</p>
+    {% else %}
+    <p class="muted" style="margin-top:0">Server rejimida har {{ cfg.SYNC_INTERVAL_MIN }} daqiqada avtomatik ishlaydi. Tashqi cron uchun manzil:</p>
+    {% endif %}
+    <input readonly value="{{ cron_url }}" onclick="this.select()">
+    <p class="muted" style="font-size:12px">Bu manzil maxfiy kalitni o'z ichiga oladi — boshqalarga bermang.</p>
+  </div>
+  <form class="card" method="post" action="/settings/password">
+    <h2>Parolni o'zgartirish</h2>
+    <label>Yangi parol</label><input name="password" type="password" minlength="8" required autocomplete="new-password" style="margin-bottom:10px">
+    <label>Takrorlang</label><input name="password2" type="password" minlength="8" required autocomplete="new-password" style="margin-bottom:12px">
+    <button class="btn">O'zgartirish</button>
+  </form>
 </div>
 
 <div class="grid g2">
